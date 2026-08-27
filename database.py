@@ -1,5 +1,6 @@
 import os
 from contextlib import contextmanager
+from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row
@@ -53,3 +54,15 @@ def init_db():
                     seed_tasks
                 )
         conn.commit()
+
+
+def get_all_tasks() -> List[Dict[str, Any]]:
+    with get_db_cursor() as cur:
+        cur.execute("SELECT id, title, done FROM tasks ORDER BY id ASC;")
+        return cur.fetchall()
+
+
+def get_task_by_id(task_id: int) -> Optional[Dict[str, Any]]:
+    with get_db_cursor() as cur:
+        cur.execute("SELECT id, title, done FROM tasks WHERE id = %s;", (task_id,))
+        return cur.fetchone()
