@@ -144,3 +144,42 @@ Output:
 Container bersifat *ephemeral*, yang berarti seluruh file di dalam container akan terhapus ketika container dihancurkan. Untuk memastikan data basis data tidak hilang saat restart atau update container, digunakan Docker Named Volume `taskdata` yang dipetakan ke `/var/lib/postgresql/data`. 
 
 Saat menjalankan `docker compose down` dan `docker compose up -d`, volume `taskdata` tetap tersimpan di host machine sehingga data tugas tetap utuh dan persisten.
+
+---
+
+## 7. AI vs Me (Stage 6 AI Rematch)
+
+Pada tahap bonus ini, sebuah versi terpisah di-*generate* oleh AI di dalam direktori terisolasi `ai-version/` untuk diuji dan dikomparasikan terhadap implementasi utama (Stages 0–5).
+
+### Prompt yang Digunakan
+```text
+Build a containerized task management REST API in Python using FastAPI, psycopg 3, and PostgreSQL.
+Requirements:
+1. PostgreSQL running on port 5432 with database 'tasks', credentials configured via DATABASE_URL from .env file (never hardcoded).
+2. A 'tasks' table with columns (id serial primary key, title text not null, done boolean not null default false).
+3. On startup, initialize the table if not present, and seed exactly 3 sample tasks ONLY when the table is empty.
+4. Five CRUD endpoints: GET /tasks, GET /tasks/{id}, POST /tasks, PUT /tasks/{id}, DELETE /tasks/{id} maintaining consistent status codes (200, 201, 204, 400, 404).
+5. All queries must use parameterized SQL placeholders (%s) in a dedicated database module.
+6. Containerization: Dockerfile for the API and compose.yaml orchestrating 'api' and 'db' services with a persistent named volume for /var/lib/postgresql/data.
+```
+
+### Analisis Komparasi (3 Perbedaan Konkret)
+
+1. **Penanganan Format Error JSON (Payload Exact Match)**:
+   - *AI Version*: Menggunakan standard FastAPI `HTTPException(detail={"error": ...})`, yang secara default menghasilkan output berstruktur `{"detail": {"error": "..."}}`.
+   - *Hand-built Version*: Menggunakan `JSONResponse` langsung sehingga output error persis berbentuk `{"error": "Task not found"}` dan `{"error": "Title is required"}` sesuai kontrak API.
+
+2. **Mitigasi Race Condition Startup Basis Data**:
+   - *AI Version*: Hanya mendefinisikan `depends_on: [db]` tanpa healthcheck dan tanpa retry logic di Python. Ketika Postgres memerlukan beberapa detik untuk inisialisasi awal, container API berisiko gagal terhubung (*connection refused*).
+   - *Hand-built Version*: Menggunakan healthcheck `pg_isready` pada compose service `db` dengan kondisi `service_healthy`, ditambah retry loop 5 kali di `database.py:init_db()`.
+
+3. **Manajemen Koneksi dan Abstraksi Cursor**:
+   - *AI Version*: Membuka koneksi baru secara ad-hoc di setiap fungsi tanpa helper context manager cursor terpusat.
+   - *Hand-built Version*: Menyediakan context manager `get_db_cursor()` yang memastikan cursor dan koneksi tertutup serta ter-*commit* secara bersih.
+
+### Evaluasi Prompt Engineering
+Prompt awal belum secara eksplisit meminta:
+- Format payload error persis tanpa pembungkus key `detail`.
+- Penggunaan Docker healthcheck dan connection retry handling saat booting database.
+
+Setelah spesifikasi ditambahkan secara eksplisit, AI mampu mereproduksi konfigurasi Docker Compose yang tangguh dengan dependency conditions yang tepat.
