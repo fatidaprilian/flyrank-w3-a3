@@ -1,4 +1,5 @@
 import os
+import time
 from contextlib import contextmanager
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
@@ -26,34 +27,43 @@ def get_db_cursor():
 
 
 def init_db():
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            # Buat tabel tasks jika belum ada
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id SERIAL PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    done BOOLEAN NOT NULL DEFAULT FALSE
-                );
-            """)
+    retries = 5
+    while retries > 0:
+        try:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    # Buat tabel tasks jika belum ada
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS tasks (
+                            id SERIAL PRIMARY KEY,
+                            title TEXT NOT NULL,
+                            done BOOLEAN NOT NULL DEFAULT FALSE
+                        );
+                    """)
 
-            # Periksa apakah tabel kosong
-            cur.execute("SELECT COUNT(*) AS count FROM tasks;")
-            result = cur.fetchone()
-            count = result["count"] if result else 0
+                    # Periksa apakah tabel kosong
+                    cur.execute("SELECT COUNT(*) AS count FROM tasks;")
+                    result = cur.fetchone()
+                    count = result["count"] if result else 0
 
-            # Seed 3 task contoh jika tabel masih kosong
-            if count == 0:
-                seed_tasks = [
-                    ("Buy groceries", False),
-                    ("Read a book", True),
-                    ("Write some code", False),
-                ]
-                cur.executemany(
-                    "INSERT INTO tasks (title, done) VALUES (%s, %s);",
-                    seed_tasks
-                )
-        conn.commit()
+                    # Seed 3 task contoh jika tabel masih kosong
+                    if count == 0:
+                        seed_tasks = [
+                            ("Buy groceries", False),
+                            ("Read a book", True),
+                            ("Write some code", False),
+                        ]
+                        cur.executemany(
+                            "INSERT INTO tasks (title, done) VALUES (%s, %s);",
+                            seed_tasks
+                        )
+                conn.commit()
+            break
+        except Exception as e:
+            retries -= 1
+            if retries == 0:
+                raise e
+            time.sleep(1)
 
 
 def get_all_tasks() -> List[Dict[str, Any]]:
