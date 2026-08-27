@@ -66,3 +66,39 @@ def get_task_by_id(task_id: int) -> Optional[Dict[str, Any]]:
     with get_db_cursor() as cur:
         cur.execute("SELECT id, title, done FROM tasks WHERE id = %s;", (task_id,))
         return cur.fetchone()
+
+
+def create_task(title: str, done: bool = False) -> Dict[str, Any]:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO tasks (title, done) VALUES (%s, %s) RETURNING id, title, done;",
+                (title, done)
+            )
+            created = cur.fetchone()
+        conn.commit()
+        return created
+
+
+def update_task(task_id: int, title: str, done: bool) -> Optional[Dict[str, Any]]:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE tasks SET title = %s, done = %s WHERE id = %s RETURNING id, title, done;",
+                (title, done, task_id)
+            )
+            updated = cur.fetchone()
+        conn.commit()
+        return updated
+
+
+def delete_task(task_id: int) -> bool:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM tasks WHERE id = %s RETURNING id;",
+                (task_id,)
+            )
+            deleted = cur.fetchone()
+        conn.commit()
+        return deleted is not None
